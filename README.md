@@ -1,66 +1,78 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+## IPsec VPN Controll
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Управление и мониториг VPN сервера
 
-## About Laravel
+### Настройки
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+##### Sudoers
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+В качестве управления и мониторинга используется приложение `ipsec`, для доступа к нему нееобходимо, чтобы `php` был запущен от имени пользователя, входящего в группу `sudo`
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+Для разрешения выполнения sudo команд без ввода пароля, необходимо добавить строку в файл `/etc/sudoers`
 
-## Learning Laravel
+```sh
+# Allow members of group sudo to execute any command
+%sudo	ALL=(ALL:ALL) ALL
+username ALL=(ALL) NOPASSWD: /usr/sbin/ipsec
+```
+где `username` имя пользователя от которого запущен `php`
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+##### UpDown
 
-You may also try the [Laravel Bootcamp](https://bootcamp.laravel.com), where you will be guided through building a modern Laravel application from scratch.
+Чтобы фиксировать подключение и отключение пользоватей VPN, необходимо изменить файл `/usr/lib/ipsec/_updown`
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains over 2000 video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+В начале добавьте переменную с расположением исполняющего файла artisan
+```sh
+# define a minimum PATH environment in case it is not set
+PATH="/sbin:/bin:/usr/sbin:/usr/bin:/usr/sbin"
+export PATH
 
-## Laravel Sponsors
+# comment to disable logging VPN connections to syslog
+VPN_LOGGING=1
+#
+# tag put in front of each log entry:
+TAG=vpn
+#
+# syslog facility and priority used:
+FAC_PRIO=local0.notice
+#
+# to create a special vpn logging file, put the following line into
+# the syslog configuration file /etc/syslog.conf:
+#
+# local0.notice                   -/var/log/vpn
+#
+# IPsec vpn hook
+VPN_HOOK="/var/www/vpn-conrol/artisan"
+```
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+Затем найдите строку `case "$PLUTO_VERB:$1" in` и для кейсов
+- `up-client:)`
+- `down-client:)`
+- `up-client-v6:)`
+- `down-client-v6:)`
 
-### Premium Partners
+```sh
+php $VPN_HOOK app:ipsec-updown $PLUTO_XAUTH_ID \
+	--verb=$PLUTO_VERB \
+	--connect=$PLUTO_CONNECTION \
+	--uniqueid=$PLUTO_UNIQUEID \
+	--reqid=$PLUTO_REQID \
+	--peer=$PLUTO_PEER \
+	--ip=$PLUTO_PEER_SOURCEIP
+```
 
-- **[Vehikl](https://vehikl.com/)**
-- **[Tighten Co.](https://tighten.co)**
-- **[WebReinvent](https://webreinvent.com/)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel/)**
-- **[Cyber-Duck](https://cyber-duck.co.uk)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Jump24](https://jump24.co.uk)**
-- **[Redberry](https://redberry.international/laravel/)**
-- **[Active Logic](https://activelogic.com)**
-- **[byte5](https://byte5.de)**
-- **[OP.GG](https://op.gg)**
+Также потребуется в настройках вашего подключения указать путь до скрипта `_updown`
 
-## Contributing
+`/etc/ipsec.conf`
+```conf
+    conn <name>
+        ...
+        leftupdown=/usr/lib/ipsec/_updown
+        rightupdown=/usr/lib/ipsec/_updown
+        ...
+```
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
-
-## Code of Conduct
-
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
-
-## Security Vulnerabilities
-
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
-
-## License
-
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+После чего перезапустите `ipsec`
+```bash
+ipsec restart
+```
