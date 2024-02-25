@@ -8,6 +8,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Http;
 
 class UpDownIpsecJob implements ShouldQueue
 {
@@ -26,6 +27,16 @@ class UpDownIpsecJob implements ShouldQueue
      */
     public function handle(): void
     {
-        IpsecConnection::create($this->updownData);
+        $item = IpsecConnection::create($this->updownData);
+
+        $appId = env('APP_CALLBACK_KEY');
+        $url = env('APP_URL_CALLBACK');
+
+        if (!$url) {
+            return;
+        }
+
+        Http::withHeader('X-Application-Id', $appId)
+            ->post($url, $item->toArray());
     }
 }
