@@ -110,8 +110,8 @@ class IpsecCounterCommand extends Command
                 }
 
                 $connect->update([
-                    'bytes_in' => $item['bytes_i'] ?? $connect->bytes_in,
-                    'bytes_out' => $item['bytes_o'] ?? $connect->bytes_out,
+                    'bytes_in' => (int) ($item['bytes_i'] ?? $connect->bytes_in),
+                    'bytes_out' => (int) ($item['bytes_o'] ?? $connect->bytes_out),
                 ]);
             })
             ->dump();
